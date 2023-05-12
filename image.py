@@ -8,12 +8,12 @@ class Image:
         source_id = source[source.rfind('/'):]  #get source id of emote from link
         response = requests.get(f"https://7tv.io/v3/emotes/{source_id}")    #get request from api
         emote_info = json.loads(response.content.decode('utf-8'))   #load json from request
-        banned_characters = """ " \ / : | < > * ? """ #banned characters that cant be used to name the emote
-        self.extension = ".png" if emote_info["animated"] == False else ".gif"   #determine format
+        banned_characters = ('\"', '\\', '/', ':', '|', '<', '>', '*', '?') #banned characters that cant be used to name the emote
+        self.extension = ".gif" if emote_info["animated"] else ".png"   #determine format
         # downloading emote itself
-        img = f"https://cdn.7tv.app/emote/{source_id}/4x{self.extension}"
-        self.image = requests.get(img).content
-        self.name = ''.join([i if i not in banned_characters else 'x' for i in emote_info["name"]])  # get emote name
+        image_url = f"https://cdn.7tv.app/emote/{source_id}/4x{self.extension}"
+        self.image = requests.get(image_url).content
+        self.name = emote_info["name"].replace(''.join(banned_characters), 'x')  # get emote name
 
 
     def increment_name(self):
@@ -23,7 +23,7 @@ class Image:
             self.name += '(1)'
         else:
             self.name = check.group(1) + f"({int(check.group(2)) + 1})"
-        new_path = pathlib.Path(f"{self.path.parent}\\{self.name}{self.extension}")
+        new_path = pathlib.Path(self.path.parent, self.name, self.extension)
         if new_path.exists():
             self.increment_name()
         else:
@@ -32,62 +32,66 @@ class Image:
 
     def put_to(self, path):
         #this has to put emote in specified directory
-        self.path = pathlib.Path(f"{path}{self.name}{self.extension}")
+        self.path = pathlib.Path(path, self.name, self.extension)
         #renaming if exists
         if self.path.exists():
             self.increment_name()
         #writing
-        with open(self.path, 'wb') as handler:
-            handler.write(self.image)
+        with open(self.path, 'wb') as file:
+            file.write(self.image)
 
 
-    def true_size_frombytes(self):
-        return sys.getsizeof(self.image) - sys.getsizeof(bytes())
+    def size(self):
+        if hasattr(self, "path"):
+            return os.path.getsize(self.path)
+        else:
+            return sys.getsizeof(self.image) - sys.getsizeof(bytes())
 
 
-    def emote_size(self, path):
-        return os.path.getsize(path)
+    def __optimizer__(self, steps, target, colors, lossiness, *args):
+        #internal function to run optimization cycle
+        extra_flags = ' | '.join(args)
+        print(f"--- steps:{steps}; additional flags:{extra_flags} ---")
+        arguments = lambda o: ["gifsicle", "-b", "+x", *o, self.path]
+        ending = ["st", "nd", "rd"] + ["th"] * 8
+        for i in range(steps):
+            with open(self.path, 'wb') as file:
+                file.write(self.image)
+            unopt = subprocess.run(arguments(["-U"]), shell=True)
+            opt = subprocess.run(arguments(args + (f"--lossy={lossiness}", f"-k={colors}", "-O3")), shell=True)
+            if self.size() < threshold:
+                print(
+                    f"optimization successful on {i + 1}{ending[i]} step, emote size {self.size() / 1000} kb")
+                return True
+            else:
+                print(f"optimizing on {i + 1}{ending[i]} step, emote size {self.size() / 1000} kb")
+            colors -= 2
+            lossiness += 20
+        print(f"optimization failed :( \n extra flags: {extra_flags if args else 'None'}")
+        return False
 
 
     def optimize(self, threshold):
         #trying different optimizaton methods, if size comes less than threshold, return True else False
 
         #workaround to wait till file appears
-        time_to_wait = 10
-        time_counter = 0
+        sec_to_wait = 10
+        sec_counter = 0
         while not self.path.exists():
-            print(f"waiting till the file appears{'.' * time_counter}")
+            print(f"waiting till the file appears{'.' * sec_counter}")
             time.sleep(1)
-            time_counter += 1
-            if time_counter > time_to_wait:
+            sec_counter += 1
+            if sec_counter > sec_to_wait:
                 print("waiting too long, stopping")
                 return
 
-        def optimization(path, steps, target, colors, lossiness, *args):
-            print(f"--- steps:{steps}; additional flags:{' | '.join(args)} ---")
-            arguments = lambda o: ["gifsicle", "-b", "+x", *o, path]
-            ending = ["st", "nd", "rd"] + ["th"] * 8
-            for i in range(steps):
-                with open(path, 'wb') as handler:
-                    handler.write(self.image)
-                unopt = subprocess.run(arguments(["-U"]), shell=True)
-                opt = subprocess.run(arguments(args + (f"--lossy={lossiness}", f"-k={colors}", "-O3")), shell=True)
-                if self.emote_size(path) < threshold:
-                    print(f"optimization successful on {i + 1}{ending[i]} step, emote size {self.emote_size(path) / 1000} kb")
-                    return True
-                else:
-                    print(f"optimizing on {i + 1}{ending[i]} step, emote size {self.emote_size(path) / 1000} kb")
-                colors -= 2
-                lossiness += 20
-            print("optimization failed :(")
-            return False
-
-
-        if optimization(self.path, 6, threshold, 32, 20, "--method=median-cut"):
+        print(f"emote {current_image.name} is too big! trying to optimize :3")
+        #run optimization methods
+        if self.__optimizer__(self.path, 6, threshold, 32, 20, "--method=median-cut"):
             return True
-        elif optimization(self.path, 5, threshold, 16, 100, "--use-colormap=web", "--method=median-cut"):
+        elif self.__optimizer__(self.path, 5, threshold, 16, 100, "--use-colormap=web", "--method=median-cut"):
             return True
-        elif optimization(self.path, 5, threshold, 16, 100, "--use-colormap=web", "--method=blend-diversity"):
+        elif self.__optimizer__(self.path, 5, threshold, 16, 100, "--use-colormap=web", "--method=blend-diversity"):
             return True
         else:
             return False
@@ -95,7 +99,7 @@ class Image:
 
     def move_to(self, new_path):
         #this has to move existing emote to new path, return False if exists
-        end_path = pathlib.Path(f"{new_path}{self.path.name}")
+        end_path = pathlib.Path(new_path, self.path.name)
         if end_path.exists():
             self.increment_name()
             self.move_to(new_path)
