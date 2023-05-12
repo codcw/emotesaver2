@@ -11,8 +11,13 @@ pathlib.Path(path_failed).mkdir(exist_ok=True)
 
 def execute():
     failed = completed = 0
-    with open(base_dir / "links.txt", "r") as links:
-        for link in links.readlines():
+    links = base_dir / "links.txt"
+    if links.exists() != True:
+        with open(links, "w") as file:
+            print(f"file {links.name} doesnt exist!")
+            return
+    with open(links, "r") as file:
+        for link in file.readlines():
             current_image = Image(link.strip())
             print(f"processing emote {current_image.name}, size {current_image.size()}")
             current_image.put_to(base_dir)
@@ -27,7 +32,11 @@ def execute():
                     current_image.move_to(path_failed)
                     current_image.put_to(path_big)
                     failed += 1
-    print(f"failed: {failed}, completed: {completed}, total: {failed + completed}")
+    total = failed + completed
+    if total == 0:
+        print(f"file {links.name} is empty!")
+    else:
+        print(f"failed: {failed}, completed: {completed}, total: {total}")
 
 if __name__ == "__main__":
     execute()

@@ -23,7 +23,7 @@ class Image:
             self.name += '(1)'
         else:
             self.name = check.group(1) + f"({int(check.group(2)) + 1})"
-        new_path = pathlib.Path(self.path.parent, self.name, self.extension)
+        new_path = pathlib.Path(self.path.parent, self.name + self.extension)
         if new_path.exists():
             self.increment_name()
         else:
@@ -32,7 +32,7 @@ class Image:
 
     def put_to(self, path):
         #this has to put emote in specified directory
-        self.path = pathlib.Path(path, self.name, self.extension)
+        self.path = pathlib.Path(path, self.name + self.extension)
         #renaming if exists
         if self.path.exists():
             self.increment_name()
@@ -50,7 +50,7 @@ class Image:
 
     def __optimizer__(self, steps, target, colors, lossiness, *args):
         #internal function to run optimization cycle
-        extra_flags = ' | '.join(args)
+        extra_flags = ' | '.join(args) if args else 'None'
         print(f"--- steps:{steps}; additional flags:{extra_flags} ---")
         arguments = lambda o: ["gifsicle", "-b", "+x", *o, self.path]
         ending = ["st", "nd", "rd"] + ["th"] * 8
@@ -59,7 +59,7 @@ class Image:
                 file.write(self.image)
             unopt = subprocess.run(arguments(["-U"]), shell=True)
             opt = subprocess.run(arguments(args + (f"--lossy={lossiness}", f"-k={colors}", "-O3")), shell=True)
-            if self.size() < threshold:
+            if self.size() < target:
                 print(
                     f"optimization successful on {i + 1}{ending[i]} step, emote size {self.size() / 1000} kb")
                 return True
@@ -67,7 +67,7 @@ class Image:
                 print(f"optimizing on {i + 1}{ending[i]} step, emote size {self.size() / 1000} kb")
             colors -= 2
             lossiness += 20
-        print(f"optimization failed :( \n extra flags: {extra_flags if args else 'None'}")
+        print(f"optimization failed :( \n extra flags: {extra_flags}")
         return False
 
 
@@ -85,13 +85,13 @@ class Image:
                 print("waiting too long, stopping")
                 return
 
-        print(f"emote {current_image.name} is too big! trying to optimize :3")
+        print(f"emote {self.name} is too big! trying to optimize :3")
         #run optimization methods
-        if self.__optimizer__(self.path, 6, threshold, 32, 20, "--method=median-cut"):
+        if self.__optimizer__(6, threshold, 32, 20, "--method=median-cut"):
             return True
-        elif self.__optimizer__(self.path, 5, threshold, 16, 100, "--use-colormap=web", "--method=median-cut"):
+        elif self.__optimizer__(5, threshold, 16, 100, "--use-colormap=web", "--method=median-cut"):
             return True
-        elif self.__optimizer__(self.path, 5, threshold, 16, 100, "--use-colormap=web", "--method=blend-diversity"):
+        elif self.__optimizer__(5, threshold, 16, 100, "--use-colormap=web", "--method=blend-diversity"):
             return True
         else:
             return False
