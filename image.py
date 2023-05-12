@@ -8,12 +8,12 @@ class Image:
         source_id = source[source.rfind('/'):]  #get source id of emote from link
         response = requests.get(f"https://7tv.io/v3/emotes/{source_id}")    #get request from api
         emote_info = json.loads(response.content.decode('utf-8'))   #load json from request
-        banned_characters = ('\"', '\\', '/', ':', '|', '<', '>', '*', '?') #banned characters that cant be used to name the emote
+        banned_characters = ('"', '\\', '/', ':', '|', '<', '>', '*', '?') #banned characters that cant be used to name the emote
         self.extension = ".gif" if emote_info["animated"] else ".png"   #determine format
         # downloading emote itself
         image_url = f"https://cdn.7tv.app/emote/{source_id}/4x{self.extension}"
         self.image = requests.get(image_url).content
-        self.name = emote_info["name"].replace(''.join(banned_characters), 'x')  # get emote name
+        self.name = ''.join('x' if i in banned_characters else i for i in emote_info["name"])  # get emote name
 
 
     def increment_name(self):
